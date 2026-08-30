@@ -1,0 +1,104 @@
+---
+title: "Viewing Telemetry in MCPfy"
+description: "See tool-level usage, health scores, and quality signals for your MCP server in the MCPfy dashboard"
+---
+
+## Create a telemetry setup
+
+<Steps>
+<Step title="Open the Telemetry dashboard">
+  Navigate to [mcpfy.ai/dashboard/telemetry](https://mcpfy.ai/dashboard/telemetry) and start a new setup.
+</Step>
+<Step title="Tell us how you're running your server">
+  Pick the option that matches your situation:
+  - **I'm building with mcpfy-sdk**
+  - **I wrote my own server and can edit its code**
+  - **I'm running someone else's server on my computer**
+
+  <Tip>
+  This is the same three-way split as the [Overview](/pulse-sdk/overview#which-install-mode-do-i-need) - the dashboard shows you setup instructions tailored to whichever one you pick.
+  </Tip>
+</Step>
+<Step title="Get your API key">
+  MCPfy generates an API key for this setup. Copy it - you'll use it as `MCPFY_API_KEY` in the [TypeScript](/pulse-sdk/typescript) or [Python](/pulse-sdk/python) install steps.
+</Step>
+</Steps>
+
+## Waiting for the first event
+
+Until your server sends its first event, the setup shows a **"Waiting for the first event"** state with your API key (hidden by default - reveal or copy it from there) and the same setup instructions from step 2. Nothing to do here except finish wiring up the SDK - the first event usually shows up within a few seconds of your server's next request.
+
+<Info>
+Lost the setup instructions? Every telemetry setup has a **Setup Instructions** button that reopens the same picker at any time.
+</Info>
+
+## Once data is flowing
+
+The setup page opens into three tabs: **Analytics**, **Requests**, and **Events**.
+
+### Analytics
+
+A single scrollable page, ordered roughly by how often you'd check each section. Use the date-range picker and tool filter at the top to scope it - the tool filter only narrows **Overview** and **Results & Payloads**, the other sections aren't tool-scoped.
+
+#### Overview
+
+Is anything broken right now? A health-score badge, total calls, and error rate, plus health-score and call-volume trend charts.
+
+<Frame>
+  <img src="/images/telemetry-overview.png" alt="Telemetry Overview section showing server health score, total calls, error rate, and health score and call volume trend charts" />
+</Frame>
+
+#### Connections & Clients
+
+Who's actually connecting - handshake health, which optional capabilities connecting clients support, and a breakdown of client name/version by session.
+
+<Frame>
+  <img src="/images/telemetry-connections-clients.png" alt="Connections & Clients section showing init failure rate, protocol versions seen, client capability adoption, and client distribution by name and version" />
+</Frame>
+
+#### Results & Payloads
+
+What's coming back - result quality over time.
+
+#### Tools & Catalog Quality
+
+Is this server well-built for an LLM caller? Declared vs. called tools, catalog coverage, which tools have never been called, plus a per-tool table with call count, error rate, cancel rate, P95 latency, and risk flags (e.g. destructive tools) - the same tool catalog graded at two granularities.
+
+<Frame>
+  <img src="/images/telemetry-tools-catalog-quality.png" alt="Tools & Catalog Quality section showing declared vs called tools, catalog coverage, never-called tools, and the per-tool table with error rate, cancel rate, P95 latency, and risk flags" />
+</Frame>
+
+#### Server Signals
+
+What the server pushes to clients unprompted, without being asked.
+
+#### Usage Patterns
+
+Call volume by day and hour (UTC), for the selected range.
+
+### Requests
+
+A raw, per-request view of network traffic for the linked server.
+
+### Events
+
+A raw terminal/event log stream for the linked server.
+
+## Managing a setup
+
+From the setup's detail page:
+
+- **Copy or reveal** the API key at any time
+- **Archive** a setup you're pausing (and **unarchive** it later)
+- **Revoke** a setup permanently - type `confirm` to confirm. Any server still using that key stops sending telemetry immediately, and this can't be undone.
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="TypeScript" icon="js" href="/pulse-sdk/typescript">
+    Install and configure `mcpfy-pulse` for Node.js MCP servers.
+  </Card>
+  <Card title="Python" icon="python" href="/pulse-sdk/python">
+    Install and configure `mcpfy-pulse` for FastMCP or the official `mcp` SDK.
+  </Card>
+</CardGroup>

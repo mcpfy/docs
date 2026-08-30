@@ -19,6 +19,15 @@
               "create-server",
               "support"
             ]
+          },
+          {
+            "group": "Pulse SDK",
+            "pages": [
+              "pulse-sdk/overview",
+              "pulse-sdk/typescript",
+              "pulse-sdk/python",
+              "pulse-sdk/dashboard"
+            ]
           }
         ]
       },
