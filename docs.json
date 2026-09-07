@@ -28,6 +28,22 @@
               "pulse-sdk/python",
               "pulse-sdk/dashboard"
             ]
+          },
+          {
+            "group": "MCPfy SDK",
+            "pages": [
+              "mcpfy-sdk/getting-started",
+              "mcpfy-sdk/architecture",
+              "mcpfy-sdk/server",
+              "mcpfy-sdk/client",
+              "mcpfy-sdk/tools",
+              "mcpfy-sdk/prompts",
+              "mcpfy-sdk/resources",
+              "mcpfy-sdk/widgets",
+              "mcpfy-sdk/widget-react",
+              "mcpfy-sdk/authentication",
+              "mcpfy-sdk/api-reference"
+            ]
           }
         ]
       },
@@ -93,15 +109,15 @@
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
