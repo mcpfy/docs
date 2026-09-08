@@ -1,80 +1,59 @@
-
 # Widgets
 
-MCPfy provides a unified way to build interactive UI widgets that can be attached to MCP tools and rendered by compatible MCP hosts.
+Widgets allow an MCP server to expose interactive user interfaces alongside MCP tools. A widget can be used when a tool needs to present richer output than plain text or structured data.
 
-Widgets can work across multiple UI protocols, including:
+mcpfy provides the widget runtime, registration APIs, and build tooling required to develop and serve widgets.
 
-* MCP-UI
-* MCP Apps
-* OpenAI Apps SDK
+## Widget Directory Structure
 
-The SDK handles protocol-specific metadata and content generation so that the same widget can be exposed through a single MCPfy tool definition.
-
----
-
-## Overview
-
-A widget is an interactive UI resource associated with an MCP tool.
-
-Instead of returning only text from a tool, a widget-enabled tool can return:
-
-1. The tool's structured result.
-2. Text content representing the result.
-3. UI content for compatible hosts.
-
-A widget can therefore provide a richer experience while retaining normal MCP tool behavior.
-
-The recommended approach is to define widgets through the `widget` option on `server.tool()`.
-
-The older `.widget()` server method is still available for compatibility but is deprecated.
-
----
-
-## Widget Directory
-
-MCPfy supports file-based widgets stored in a widgets directory.
-
-By default, the SDK looks for widgets under:
+By default, mcpfy looks for widgets under:
 
 ```text
 src/widgets
 ```
 
-You can change the directory through `widgetsDir` when creating the server:
+Each widget has its own directory.
 
-```ts
-import { MCPServer } from "mcpfy-sdk/server";
+A typical project looks like:
 
+```text
+my-mcp-server/
+├── package.json
+├── tsconfig.json
+└── src/
+    ├── server.ts
+    └── widgets/
+        └── weather/
+            ├── main.tsx
+            └── ...
+```
+
+The widget name is determined by its directory name. In this example, the widget is named `weather`.
+
+The widget directory can be changed through the server's `widgetsDir` configuration:
+
+```typescript
 const server = new MCPServer({
-  name: "My Server",
+  name: "weather-server",
   version: "1.0.0",
-  widgetsDir: "./src/widgets",
+  widgetsDir: "src/widgets",
 });
 ```
 
-The directory is used when resolving widget references such as:
+If `widgetsDir` is not specified, the default is `src/widgets`.
 
-```ts
-widget: "weather"
-```
+## Registering a Widget
 
-The SDK prepares registered widgets before the server starts listening.
-
----
-
-## Creating a Widget
-
-A widget is normally associated with a tool.
+A widget is associated with a tool using the `widget` property.
 
 For example:
 
-```ts
-import { MCPServer } from "mcpfy-sdk/server";
+```typescript
+import { MCPServer, object } from "mcpfy-sdk/server";
 import { z } from "zod";
 
 const server = new MCPServer({
-  name: "Weather Server",
+  name: "weather-server",
   version: "1.0.0",
 });
 
@@ -88,858 +67,406 @@ server.tool(
     widget: "weather",
   },
   async ({ city }) => {
-    return {
+    return object({
       city,
-      temperatureC: 24,
+      temperature: 24,
       condition: "Sunny",
-    };
+    });
   }
 );
 
 await server.listen();
 ```
 
-Here:
+The value:
 
-* `weather` is the MCP tool.
-* `widget: "weather"` associates the tool with the widget named `weather`.
-* The callback produces structured data.
-* MCPfy exposes the appropriate UI metadata for supported protocols.
-
----
-
-## Widget Protocols
-
-MCPfy can expose widgets through multiple protocols.
-
-The supported protocol names are:
-
-```ts
-type WidgetProtocol = "mcp-ui" | "mcp-apps" | "apps-sdk";
-```
-
-When protocols are not explicitly specified, MCPfy uses all supported protocols by default.
-
-You can restrict a widget to specific protocols:
-
-```ts
-widget: {
-  dir: "weather",
-  protocols: ["mcp-ui", "mcp-apps"],
-}
-```
-
-This is useful when a widget depends on functionality that is available only in particular hosts.
-
----
-
-## Widget Configuration
-
-A widget can be configured using either a directory name or a widget options object.
-
-The directory form is the simplest:
-
-```ts
+```typescript
 widget: "weather"
 ```
 
-For more control:
-
-```ts
-widget: {
-  dir: "weather",
-  protocols: ["mcp-ui", "mcp-apps", "apps-sdk"],
-  csp: {
-    connectDomains: ["https://api.example.com"],
-  },
-}
-```
-
-The exact options available depend on the widget definition types exposed by MCPfy.
-
----
-
-## Widget Content
-
-MCPfy can generate the UI content required by the supported widget protocols.
-
-For MCP-UI, the server creates an appropriate UI content block when the widget is invoked.
-
-The tool response still contains the structured data:
-
-```ts
-return {
-  city,
-  temperatureC: 24,
-  condition: "Sunny",
-};
-```
-
-This means the widget does not replace the underlying MCP tool result. It adds a UI representation on top of it.
-
----
-
-## Content Security Policy
-
-Widgets can define Content Security Policy settings for external resources.
-
-For example:
-
-```ts
-widget: {
-  dir: "weather",
-  csp: {
-    connectDomains: ["https://api.example.com"],
-  },
-}
-```
-
-Use CSP configuration when the widget needs to communicate with external services.
-
-Keep the allowed domains as narrow as possible.
-
----
-
-## Widget Size
-
-Widget definitions can optionally specify a preferred size.
-
-For example:
-
-```ts
-widget: {
-  dir: "dashboard",
-  size: "full",
-}
-```
-
-The available size values depend on the widget types supported by the installed MCPfy version.
-
-When no size is specified, the host can use its default rendering behavior.
-
----
-
-## Legacy `.widget()` API
-
-MCPfy also exposes a `.widget()` method on `MCPServer`:
-
-```ts
-server.widget(
-  {
-    name: "weather",
-    description: "Weather widget",
-    content: "...",
-  },
-  async (params, ctx) => {
-    return {
-      temperatureC: 24,
-    };
-  }
-);
-```
-
-This API is **deprecated**.
-
-The recommended approach is to associate a widget with `server.tool()`:
-
-```ts
-server.tool({
-  name: "weather",
-  widget: "weather",
-  // ...
-});
-```
-
-The legacy `.widget()` API remains available for one release for compatibility.
-
----
-
-## Widget Callbacks
-
-A widget callback receives the tool input and a `ToolContext`.
-
-For example:
-
-```ts
-server.widget(
-  {
-    name: "weather",
-    content: "<html>...</html>",
-  },
-  async (params, ctx) => {
-    return {
-      city: params.city,
-      temperatureC: 24,
-    };
-  }
-);
-```
-
-The returned value becomes the widget's structured tool result.
-
----
-
-## Widget Response
-
-When a widget-enabled tool is called, MCPfy produces a response containing structured data.
-
-For example:
-
-```ts
-{
-  city: "Delhi",
-  temperatureC: 24,
-  condition: "Sunny"
-}
-```
-
-For MCP-UI-enabled widgets, the response also includes the generated UI content block.
-
-This allows MCP clients that do not support interactive widgets to continue using the underlying tool result.
-
----
-
-## React Widgets
-
-MCPfy provides a React runtime for building widgets that communicate with their host.
-
-Import React widget functionality from:
-
-```ts
-import {
-  HostRuntime,
-  ThemeProvider,
-  useHostContext,
-  useCallTool,
-} from "mcpfy-sdk/widget";
-```
-
-The React runtime provides hooks for:
-
-* Host protocol detection
-* Tool calls
-* Tool results
-* Host context
-* Theme
-* Layout modes
-* Widget state
-* Model context
-* Follow-up messages
-* External links
-* View tools
-
-See the dedicated **Widget React** documentation for the complete React API.
-
----
-
-## Host Protocol Detection
-
-Widgets can determine which protocol they are running under:
-
-```ts
-import { useHostProtocol } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const protocol = useHostProtocol();
-
-  return <div>Protocol: {protocol}</div>;
-}
-```
-
-The runtime can detect:
+refers to the widget directory:
 
 ```text
-apps-sdk
-mcp-apps
-mcp-ui
-none
+src/widgets/weather/
 ```
 
-`none` indicates that no supported host protocol was detected.
+**The widget entry file must exist before the server starts.** Registering a widget name without the corresponding widget directory and entry point can cause the server to fail during startup.
 
----
+## Creating the Widget Entry File
 
-## Calling MCP Tools from a Widget
+Create:
 
-Use `useCallTool()` to call another MCP tool from the widget:
+```text
+src/widgets/weather/main.tsx
+```
+
+The entry file contains the widget UI.
+
+A basic React widget can be structured around the SDK's widget runtime:
 
 ```tsx
-import { useCallTool } from "mcpfy-sdk/widget";
+import React from "react";
 
-export function WeatherWidget() {
-  const getWeather = useCallTool("weather");
-
-  return (
-    <button onClick={() => getWeather.call({ city: "Delhi" })}>
-      Get weather
-    </button>
-  );
-}
-```
-
-The returned handle provides:
-
-```ts
-{
-  call,
-  isPending,
-  data,
-  error
-}
-```
-
-For example:
-
-```tsx
-const weather = useCallTool("weather");
-
-if (weather.isPending) {
-  return <div>Loading...</div>;
-}
-
-if (weather.error) {
-  return <div>Error loading weather</div>;
-}
-
-return <div>{JSON.stringify(weather.data)}</div>;
-```
-
----
-
-## Linked Tool
-
-A widget can access the tool that originally mounted it with `useLinkedTool()`:
-
-```tsx
-import { useLinkedTool } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const tool = useLinkedTool();
-
-  return (
-    <button onClick={() => tool.call()}>
-      Refresh
-    </button>
-  );
-}
-```
-
-The hook returns:
-
-```ts
-{
-  name: string;
-  call: (args?) => Promise<unknown>;
-}
-```
-
----
-
-## Host Context
-
-Use `useHostContext()` to access information supplied by the host:
-
-```tsx
-import { useHostContext } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const host = useHostContext();
-
+export default function Weather() {
   return (
     <div>
-      <p>Protocol: {host.protocol}</p>
-      <p>Layout: {host.layoutMode}</p>
-      <p>Locale: {host.locale}</p>
+      <h1>Weather</h1>
+      <p>Weather information will appear here.</p>
     </div>
   );
 }
 ```
 
-The context includes:
+The standard `src/widgets/<name>/main.tsx` convention is handled by the mcpfy widget runtime.
 
-```ts
+You should **not manually add another `ThemeProvider` or `HostRuntime` around the standard widget entry point** when using the normal SDK convention. The runtime handles the required provider setup.
+
+## Widget Content
+
+Widgets can provide HTML content or reference a URL.
+
+When using HTML content, the content must use the structured form:
+
+```typescript
 {
-  protocol,
-  layoutMode,
-  locale,
-  platform,
-  capabilities
+  type: "html",
+  html: "<div>Hello</div>",
 }
 ```
 
----
+For URL-based content:
 
-## Theme
-
-MCPfy provides theme support through `ThemeProvider`.
-
-```tsx
-import { ThemeProvider, HostRuntime } from "mcpfy-sdk/widget";
-
-export function App() {
-  return (
-    <ThemeProvider>
-      <HostRuntime toolName="weather">
-        <WeatherWidget />
-      </HostRuntime>
-    </ThemeProvider>
-  );
-}
-```
-
-The current theme can be read using:
-
-```tsx
-import { useHostTheme } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const theme = useHostTheme();
-
-  return <div>Current theme: {theme}</div>;
-}
-```
-
-Supported themes are:
-
-```text
-light
-dark
-```
-
-The runtime initially falls back to the browser's preferred color scheme when host theme information is unavailable.
-
----
-
-## Layout Modes
-
-Widgets can inspect and request layout modes:
-
-```tsx
-import { useLayoutMode } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const layout = useLayoutMode();
-
-  return (
-    <button onClick={() => layout.request("fullscreen")}>
-      Expand
-    </button>
-  );
-}
-```
-
-The hook provides:
-
-```ts
+```typescript
 {
-  mode,
-  request,
-  available
+  type: "url",
+  url: "https://example.com/widget",
 }
 ```
 
-`available` contains the layout modes supported by the current host.
+Do not provide the HTML as a bare string:
 
-The host ultimately determines whether a requested mode can be applied.
-
----
-
-## Widget State
-
-Widgets can persist state through the host when supported.
-
-```tsx
-import { useWidgetState } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const { state, setState } = useWidgetState();
-
-  return (
-    <button
-      onClick={() =>
-        setState({
-          selectedCity: "Delhi",
-        })
-      }
-    >
-      Select Delhi
-    </button>
-  );
-}
+```typescript
+content: "<html>...</html>"
 ```
 
-The state is represented as:
+The content type must explicitly identify whether the widget content is HTML or a URL.
 
-```ts
-Record<string, unknown> | undefined
+## Widget Size
+
+Widget dimensions are represented as a tuple containing width and height.
+
+For example:
+
+```typescript
+size: ["800px", "600px"]
 ```
 
-The actual persistence behavior depends on the host protocol.
+The two values represent:
 
----
+1. Width
+2. Height
 
-## View State
+Do not use:
 
-For local widget state that should also be synchronized with host state and model context, use `useViewState()`:
-
-```tsx
-import { useViewState } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const [state, setState] = useViewState({
-    selectedCity: "Delhi",
-  });
-
-  return (
-    <button
-      onClick={() =>
-        setState((previous) => ({
-          ...previous,
-          selectedCity: "Mumbai",
-        }))
-      }
-    >
-      Change city
-    </button>
-  );
-}
+```typescript
+size: "full"
 ```
 
-`useViewState()`:
+because the SDK expects the size tuple.
 
-1. Initializes local state.
-2. Restores previously available widget state.
-3. Updates local state.
-4. Persists the state through the host adapter.
-5. Publishes the state as model context when supported.
+## Building Widgets
 
----
+Widget source code must be built before it can be used in a production server.
 
-## Sending Follow-Up Messages
+mcpfy provides CLI commands for this:
 
-Widgets can request a follow-up message:
-
-```tsx
-import { useSendFollowUp } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const sendFollowUp = useSendFollowUp();
-
-  return (
-    <button onClick={() => sendFollowUp("Tell me more about this result")}>
-      Ask for more
-    </button>
-  );
-}
+```bash
+mcpfy dev
 ```
 
-MCPfy uses the host's native follow-up mechanism when available and falls back to the appropriate protocol-specific behavior.
+and:
 
----
-
-## Opening External Links
-
-Use `useOpenExternal()` instead of directly relying on browser APIs:
-
-```tsx
-import { useOpenExternal } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const openExternal = useOpenExternal();
-
-  return (
-    <button
-      onClick={() => openExternal("https://example.com")}
-    >
-      Open website
-    </button>
-  );
-}
+```bash
+mcpfy build
 ```
 
-MCPfy delegates the operation to the host when the host provides an external-link API.
-
----
-
-## Model Context
-
-Widgets can publish information back to the model when the host supports it.
-
-```tsx
-import { useModelContext } from "mcpfy-sdk/widget";
-
-function Widget() {
-  const modelContext = useModelContext();
-
-  async function publish() {
-    await modelContext.publish({
-      text: "The user selected Delhi.",
-      structuredContent: {
-        city: "Delhi",
-      },
-    });
-  }
-
-  return <button onClick={publish}>Publish</button>;
-}
-```
-
-The hook provides:
-
-```ts
-{
-  supported: boolean;
-  publish: (params) => Promise<void>;
-}
-```
-
-This allows widget state or user selections to become available as model context where supported.
-
----
-
-## View Tools
-
-MCP Apps hosts can support tools registered directly by the mounted view.
-
-Use `useViewTool()`:
-
-```tsx
-import { useViewTool } from "mcpfy-sdk/widget";
-
-function Widget() {
-  useViewTool(
-    {
-      name: "refresh_view",
-      title: "Refresh View",
-      description: "Refresh the current widget",
-    },
-    async () => {
-      return {
-        refreshed: true,
-      };
-    }
-  );
-
-  return <div>Widget</div>;
-}
-```
-
-View tools are registered only when the current host supports them.
-
-On hosts that do not support view tools, the registration becomes a no-op.
-
----
-
-## Host Capabilities
-
-Widgets can inspect capabilities through `useHostContext()`:
-
-```tsx
-const { capabilities } = useHostContext();
-```
-
-Capabilities allow a widget to determine whether features such as model context, display modes, or view tools are available.
-
-This is preferable to assuming that every host supports every MCP widget feature.
-
----
-
-## Widget Runtime
-
-The `HostRuntime` component establishes the runtime context required by MCPfy widget hooks.
-
-Basic structure:
-
-```tsx
-import {
-  HostRuntime,
-  ThemeProvider,
-} from "mcpfy-sdk/widget";
-
-export function App() {
-  return (
-    <ThemeProvider>
-      <HostRuntime
-        toolName="weather"
-        appName="weather-widget"
-        appVersion="1.0.0"
-      >
-        <WeatherWidget />
-      </HostRuntime>
-    </ThemeProvider>
-  );
-}
-```
-
-Hooks such as `useCallTool()`, `useHostContext()`, `useWidgetState()`, and `useModelContext()` must be used inside `HostRuntime`.
-
----
-
-## Widget Lifecycle
-
-At runtime, MCPfy performs the following general flow:
-
-```text
-MCP Tool Call
-     │
-     ▼
-Widget-enabled Tool
-     │
-     ├── Structured Tool Result
-     │
-     └── Widget UI Content
-             │
-             ▼
-        Host / MCP Client
-             │
-             ▼
-        Widget Runtime
-             │
-             ▼
-       React Widget
-```
-
-The React runtime establishes communication with the host and exposes that communication through hooks.
-
----
-
-## Responsive Widget Sizing
-
-MCPfy's React runtime observes changes to the widget document size and reports the dimensions to the parent host.
-
-This allows compatible hosts to adjust the embedded widget's size as its content changes.
-
-Widgets should therefore avoid unnecessary fixed-height assumptions and allow their content to size naturally where possible.
-
----
-
-## Host Compatibility
-
-A widget may run in different environments with different capabilities.
-
-Do not assume that all hosts support:
-
-* Widget state persistence
-* Model-context updates
-* Display-mode changes
-* View-tool registration
-* Host context metadata
-* Native external-link handling
-
-Use the runtime capabilities and protocol information to adapt behavior when necessary.
-
----
-
-## Recommended Practices
-
-### Keep the MCP tool useful without the UI
-
-Always return meaningful structured data from the underlying tool.
-
-```ts
-return {
-  city,
-  temperatureC,
-  condition,
-};
-```
-
-This keeps the tool useful even when the client does not render the widget.
-
-### Use the recommended tool-based widget API
-
-Prefer:
-
-```ts
-server.tool({
-  name: "weather",
-  widget: "weather",
-});
-```
-
-over the deprecated:
-
-```ts
-server.widget(...);
-```
-
-### Check host capabilities
+### Development
 
 Use:
 
-```ts
-const { capabilities } = useHostContext();
+```bash
+mcpfy dev
 ```
 
-before relying on optional host features.
+while developing widgets.
 
-### Keep CSP restrictive
+This starts the widget development workflow and rebuilds the widget as changes are made.
 
-Only allow the external domains that the widget actually needs.
+### Production Build
 
-### Keep widget state serializable
+Before starting the server in production, run:
 
-Widget state is represented using:
-
-```ts
-Record<string, unknown>
+```bash
+mcpfy build
 ```
 
-Prefer simple serializable values such as strings, numbers, booleans, arrays, and objects.
+The production server expects the widget assets to have been built.
 
-### Handle loading and errors
+Therefore, a production deployment should include the widget build step before starting the server.
 
-Use the state exposed by `useCallTool()` or `useToolPayload()` to provide appropriate loading and error UI.
+## Widget Development Workflow
 
----
+A typical workflow is:
 
-## Exports
+### 1. Create the widget directory
 
-Widget functionality is available through the `mcpfy-sdk/widget` entry point:
-
-```ts
-import {
-  HostRuntime,
-  ThemeProvider,
-  useHostContext,
-  useHostProtocol,
-  useToolPayload,
-  useCallTool,
-  useSendFollowUp,
-  useOpenExternal,
-  useLayoutMode,
-  useHostTheme,
-  useLinkedTool,
-  useWidgetState,
-  useViewState,
-  useModelContext,
-  useViewTool,
-  HostImage,
-} from "mcpfy-sdk/widget";
+```text
+src/widgets/weather/
 ```
 
-The widget bridge functionality is available separately through:
+### 2. Create the entry file
 
-```ts
-import {
-  // widget bridge APIs
-} from "mcpfy-sdk/widget-bridge";
+```text
+src/widgets/weather/main.tsx
 ```
 
----
+### 3. Register the widget with a tool
+
+```typescript
+widget: "weather"
+```
+
+### 4. Run the widget development command
+
+```bash
+mcpfy dev
+```
+
+### 5. Build for production
+
+```bash
+mcpfy build
+```
+
+### 6. Start the MCP server
+
+Start the server using the project's normal start command after the widget build has completed.
+
+## Example Project
+
+A complete project can look like:
+
+```text
+my-mcp-server/
+├── package.json
+├── tsconfig.json
+└── src/
+    ├── server.ts
+    └── widgets/
+        └── weather/
+            ├── main.tsx
+            └── ...
+```
+
+The server registers the widget:
+
+```typescript
+import { MCPServer, object } from "mcpfy-sdk/server";
+import { z } from "zod";
+
+const server = new MCPServer({
+  name: "weather-server",
+  version: "1.0.0",
+});
+
+server.tool(
+  {
+    name: "weather",
+    description: "Get weather information",
+    schema: z.object({
+      city: z.string(),
+    }),
+    widget: "weather",
+  },
+  async ({ city }) => {
+    return object({
+      city,
+      temperature: 24,
+      condition: "Sunny",
+    });
+  }
+);
+
+await server.listen({
+  transport: "http",
+  port: 4000,
+});
+```
+
+The corresponding widget entry point is:
+
+```tsx
+import React from "react";
+
+export default function Weather() {
+  return (
+    <div>
+      <h1>Weather</h1>
+      <p>Weather information will appear here.</p>
+    </div>
+  );
+}
+```
+
+## Widget Runtime
+
+The widget runtime provides the environment required for widgets to communicate with the MCP host.
+
+For the standard widget structure, mcpfy takes care of the required runtime/provider setup.
+
+This means a widget entry point should focus on the UI rather than manually recreating the host runtime.
+
+For advanced React integration, see [Widget React](widget-react.md).
+
+## Widget and Tool Communication
+
+A widget is commonly paired with an MCP tool.
+
+The general flow is:
+
+```text
+MCP Client
+    │
+    │ calls tool
+    ▼
+MCP Server
+    │
+    │ executes tool
+    ▼
+Tool Result
+    │
+    │ associated widget
+    ▼
+Widget UI
+    │
+    │ renders interactive content
+    ▼
+User
+```
+
+The tool performs the server-side operation, while the widget provides the user-facing interface.
+
+## Production Considerations
+
+When deploying an MCP server that uses widgets:
+
+1. Ensure every registered widget has a corresponding widget directory.
+2. Ensure each widget has its required `main.tsx` entry point.
+3. Run `mcpfy build` before starting the production server.
+4. Include the generated widget assets in the deployment.
+5. Keep widget names consistent between `server.tool()` and the widget directory.
+6. Do not manually double-wrap the standard widget entry point with providers already supplied by the SDK runtime.
+
+## Troubleshooting
+
+### Widget Not Found
+
+If the server cannot find a registered widget, verify that:
+
+```typescript
+widget: "weather"
+```
+
+matches:
+
+```text
+src/widgets/weather/
+```
+
+Also verify that:
+
+```text
+src/widgets/weather/main.tsx
+```
+
+exists.
+
+### Widget Fails During Production Startup
+
+Make sure the widget has been built:
+
+```bash
+mcpfy build
+```
+
+The production server requires the generated widget assets.
+
+### Invalid Widget Content
+
+Use the structured content forms:
+
+```typescript
+{
+  type: "html",
+  html: "<div>...</div>",
+}
+```
+
+or:
+
+```typescript
+{
+  type: "url",
+  url: "https://example.com",
+}
+```
+
+Do not pass raw HTML as a string.
+
+### Invalid Widget Size
+
+Use a width/height tuple:
+
+```typescript
+size: ["800px", "600px"]
+```
+
+rather than:
+
+```typescript
+size: "full"
+```
 
 ## Summary
 
-MCPfy widgets provide a protocol-aware UI layer on top of standard MCP tools.
+Widgets provide an interactive UI layer for MCP applications.
 
-The main concepts are:
+The core workflow is:
 
-* **Tool + widget** — connects an MCP tool to an interactive UI.
-* **Widget protocols** — supports MCP-UI, MCP Apps, and OpenAI Apps SDK.
-* **Widget directory** — stores file-based widget implementations.
-* **Widget runtime** — connects React widgets to their host.
-* **Host context** — exposes protocol, layout, locale, platform, and capabilities.
-* **Widget state** — allows compatible hosts to persist UI state.
-* **Model context** — allows supported widgets to provide information back to the model.
-* **View tools** — allows supported MCP Apps hosts to register tools from the mounted view.
-* **Protocol abstraction** — lets the same widget adapt to different host environments.
+```text
+Create widget directory
+        ↓
+Create main.tsx
+        ↓
+Register widget with a tool
+        ↓
+Develop with mcpfy dev
+        ↓
+Build with mcpfy build
+        ↓
+Start the MCP server
+```
+
+The standard widget convention is:
+
+```text
+src/widgets/<widget-name>/main.tsx
+```
+
+and the tool references it using:
+
+```typescript
+widget: "<widget-name>"
+```
+
+This convention allows mcpfy to locate, build, and serve the widget as part of the MCP application.

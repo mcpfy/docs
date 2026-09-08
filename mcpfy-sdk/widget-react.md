@@ -1,4 +1,3 @@
-
 # MCPfy SDK Widget React
 
 `mcpfy-sdk/widget` provides React components and hooks for building interactive MCP widgets that can run across supported MCP hosts.
@@ -17,11 +16,21 @@ npm install mcpfy-sdk react react-dom
 
 `react` and `react-dom` are peer dependencies of the SDK and must be available in the application using the React widget package.
 
+When your widget code imports `zod` for schemas or related types, install `zod` explicitly as well; it is a peer dependency used by the SDK APIs.
+
 ---
 
-## Basic Structure
+## Standard Widget Entry versus Manual Runtime
 
-A widget normally uses `HostRuntime` as its root runtime provider:
+When using the standard convention-based entry point, create the widget at
+`src/widgets/<name>/main.tsx`. The mcpfy widget build/runtime pipeline automatically
+provides the required `ThemeProvider` and `HostRuntime` wrapping for that entry point.
+Do not add another `ThemeProvider` or `HostRuntime` in the standard entry file.
+
+The examples below show advanced standalone/manual runtime usage. Use this pattern only
+when you are mounting the React tree yourself outside the standard widget-entry pipeline.
+
+### Advanced standalone structure
 
 ```tsx
 import { HostRuntime } from "mcpfy-sdk/widget";
@@ -146,13 +155,19 @@ if (protocol === "apps-sdk") {
 }
 ```
 
-Possible values include:
+The hook returns the protocol exposed by the widget runtime.
 
-* `apps-sdk`
-* `mcp-apps`
-* `mcp-ui`
-* `iframe`
-* `none`
+The supported returned values are:
+
+```ts
+type HostProtocol =
+  | "apps-sdk"
+  | "mcp-apps"
+  | "mcp-ui"
+  | "none";
+```
+
+`"iframe"` is an internal implementation detail and should **not** be treated as a value returned by `useHostProtocol()`.
 
 The hook can also detect the environment when it is used outside an active runtime context.
 
@@ -194,7 +209,9 @@ function WeatherWidget() {
   return (
     <div>
       <p>City: {String(input?.city ?? "")}</p>
-      <p>Temperature: {String(output?.temperatureC ?? "")}°C</p>
+      <p>
+        Temperature: {String(output?.temperatureC ?? "")}°C
+      </p>
     </div>
   );
 }
@@ -228,16 +245,21 @@ await weather.call({
 });
 ```
 
-The named form returns:
+The named form returns a handle with the following shape:
 
 ```ts
-interface CallToolHandle {
-  call: (args?: Record<string, unknown>) => Promise<unknown>;
+interface CallToolHandle<
+  TArgs = Record<string, unknown>,
+  TResult = unknown
+> {
+  call: (args?: TArgs) => Promise<TResult>;
   isPending: boolean;
-  data: Record<string, unknown> | undefined;
+  data: TResult | undefined;
   error: Error | undefined;
 }
 ```
+
+The generic parameters allow the tool's argument and result types to be represented when typed tool mappings are available.
 
 The actual communication is delegated to the active host. Depending on the environment, mcpfy uses the available Apps SDK, MCP Apps, or host messaging mechanism.
 
@@ -500,7 +522,9 @@ useViewTool(
 The definition supports:
 
 ```ts
-interface ViewToolDefinition<TInput = Record<string, unknown>> {
+interface ViewToolDefinition<
+  TInput = Record<string, unknown>
+> {
   name: string;
   title?: string;
   description?: string;

@@ -8,7 +8,7 @@ It is designed around three main concepts:
 - **MCPSession** — represents an active connection to a specific MCP server.
 - **Connectors** — handle the underlying transport, currently supporting **stdio** and **HTTP**.
 
-The client API is intentionally lightweight and forwards MCP operations to the official Model Context Protocol TypeScript SDK. :contentReference[oaicite:0]{index=0}
+The client API is intentionally lightweight and forwards MCP operations to the official Model Context Protocol TypeScript SDK.
 
 ---
 

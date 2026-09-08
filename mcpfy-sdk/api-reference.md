@@ -1,69 +1,39 @@
 
 # API Reference
 
-This page provides a reference for the public APIs exposed by the `mcpfy-sdk` package.
+This page provides a reference for the public APIs exposed by `mcpfy-sdk`.
 
-The SDK is organized into separate entry points:
+The examples in this document target `mcpfy-sdk@0.3.1`.
 
-```text
-mcpfy-sdk
-mcpfy-sdk/server
-mcpfy-sdk/client
-mcpfy-sdk/widget
-mcpfy-sdk/widget-bridge
-mcpfy-sdk/auth
-```
+## Server
 
----
+Import the server APIs from:
 
-# Main Package
-
-```ts
-import { ... } from "mcpfy-sdk";
-```
-
-The main package exposes the core SDK functionality and commonly used server APIs.
-
-For server development, prefer the dedicated server entry point:
-
-```ts
-import { MCPServer } from "mcpfy-sdk/server";
-```
-
----
-
-# mcpfy-sdk/server
-
-The server entry point provides APIs for creating and running MCP servers.
-
-```ts
+```typescript
 import {
   MCPServer,
+  object,
   text,
   markdown,
-  image,
-  object,
-  error,
 } from "mcpfy-sdk/server";
+````
+
+### `MCPServer`
+
+Creates an MCP server.
+
+```typescript
+const server = new MCPServer({
+  name: "my-server",
+  version: "1.0.0",
+});
 ```
 
-## MCPServer
+### `MCPServerConfig`
 
-```ts
-class MCPServer
-```
+The server configuration supports:
 
-Creates a high-level MCP server wrapper around the official Model Context Protocol SDK.
-
-### Constructor
-
-```ts
-new MCPServer(config: MCPServerConfig)
-```
-
-### MCPServerConfig
-
-```ts
+```typescript
 interface MCPServerConfig {
   name: string;
   version: string;
@@ -75,801 +45,786 @@ interface MCPServerConfig {
 }
 ```
 
-| Property      | Type                   | Required | Description                                                   |
-| ------------- | ---------------------- | -------: | ------------------------------------------------------------- |
-| `name`        | `string`               |      Yes | Server name.                                                  |
-| `version`     | `string`               |      Yes | Server version.                                               |
-| `description` | `string`               |       No | Server description/instructions.                              |
-| `basePath`    | `string`               |       No | HTTP MCP endpoint path. Defaults to `/mcp`.                   |
-| `icon`        | `string \| ServerIcon` |       No | Server icon configuration.                                    |
-| `auth`        | `AuthConfig`           |       No | HTTP authentication configuration.                            |
-| `widgetsDir`  | `string`               |       No | Root directory for widget folders. Defaults to `src/widgets`. |
+#### `name`
 
-### Properties
+Required server name.
 
-#### `nativeServer`
-
-```ts
-readonly nativeServer: OfficialMcpServer
+```typescript
+name: "weather-server"
 ```
 
-Provides direct access to the underlying `@modelcontextprotocol/sdk` `McpServer`.
+#### `version`
 
-This acts as an escape hatch when functionality from the official SDK is required.
+Required server version.
 
-#### config
-
-```ts
-readonly config: MCPServerConfig
+```typescript
+version: "1.0.0"
 ```
 
-The configuration supplied to the server.
+#### `description`
 
-#### http
+Optional description for the server.
 
-```ts
-get http(): HttpHandle | undefined
+```typescript
+description: "Provides weather information"
 ```
 
-Returns the active HTTP server handle after an HTTP `listen()` call.
+#### `basePath`
 
----
+Optional HTTP MCP endpoint path.
 
-## tool()
+The default is:
 
-Registers an MCP tool.
-
-```ts
-server.tool(definition, callback?)
+```text
+/mcp
 ```
 
 Example:
 
-```ts
+```typescript
+basePath: "/weather"
+```
+
+#### `icon`
+
+Optional server icon.
+
+mcpfy supports remote URLs, data URIs, local file paths, and `file:` URLs.
+
+#### `auth`
+
+Optional HTTP authentication configuration.
+
+```typescript
+auth: {
+  type: "oauth",
+  verifyToken: jwksVerifier({
+    issuer,
+    jwksUri,
+    audience,
+  }),
+  authorizationServers: [issuer],
+}
+```
+
+See [Authentication](authentication.md).
+
+#### `widgetsDir`
+
+Optional widget root directory.
+
+The default is:
+
+```text
+src/widgets
+```
+
+### `server.tool()`
+
+Registers a tool with the MCP server.
+
+```typescript
 server.tool(
   {
     name: "add",
-    description: "Adds two numbers",
+    description: "Add two numbers",
     schema: z.object({
       a: z.number(),
       b: z.number(),
     }),
   },
-  async ({ a, b }) => ({
-    result: a + b,
-  })
+  async ({ a, b }) => {
+    return object({
+      result: a + b,
+    });
+  }
 );
 ```
 
-Returns the same `MCPServer` instance, allowing method chaining.
+The tool definition contains:
 
----
+* `name`
+* `description`
+* `schema`
+* optional widget configuration
 
-## prompt()
+The callback receives validated input.
 
-Registers an MCP prompt.
+### Tool Return Helpers
 
-```ts
-server.prompt(definition, callback?)
+#### `text()`
+
+Creates a text result:
+
+```typescript
+return text("Hello!");
 ```
 
-Example:
+#### `markdown()`
 
-```ts
-server.prompt(
-  {
-    name: "code-review",
-    description: "Generate a code review prompt",
-    arguments: [
-      {
-        name: "language",
-        description: "Programming language",
-        required: true,
-      },
-    ],
-  },
-  async ({ language }) => ({
-    messages: [
-      {
-        role: "user",
-        content: {
-          type: "text",
-          text: `Review this ${language} code.`,
-        },
-      },
-    ],
-  })
-);
+Creates a Markdown result:
+
+```typescript
+return markdown("# Hello\n\nThis is Markdown.");
 ```
 
----
+#### `object()`
 
-## resource()
+Creates a structured result:
 
-Registers an MCP resource.
-
-```ts
-server.resource(definition, callback?)
-```
-
-Example:
-
-```ts
-server.resource(
-  {
-    uri: "config://app",
-    name: "Application configuration",
-  },
-  async () => ({
-    contents: [
-      {
-        uri: "config://app",
-        text: JSON.stringify({ environment: "production" }),
-      },
-    ],
-  })
-);
-```
-
----
-
-## resourceTemplate()
-
-Registers a parameterized resource template.
-
-```ts
-server.resourceTemplate(definition, callback?)
-```
-
-Example:
-
-```ts
-server.resourceTemplate(
-  {
-    uriTemplate: "users://{id}",
-    name: "User",
-  },
-  async ({ id }) => ({
-    contents: [
-      {
-        uri: `users://${id}`,
-        text: JSON.stringify({ id }),
-      },
-    ],
-  })
-);
-```
-
----
-
-## widget()
-
-Registers an HTML-based UI resource.
-
-```ts
-server.widget(definition, callback?)
-```
-
-> **Deprecated:** New projects should use the `widget` option on `server.tool()` instead. The method remains available for compatibility.
-
----
-
-## refreshResource()
-
-Notifies subscribed clients that a resource has new content.
-
-```ts
-await server.refreshResource(uri);
-```
-
-### Parameters
-
-| Parameter | Type     | Description                     |
-| --------- | -------- | ------------------------------- |
-| `uri`     | `string` | URI of the resource to refresh. |
-
----
-
-## refreshResources()
-
-Requests clients to list resources again.
-
-```ts
-server.refreshResources();
-```
-
----
-
-## refreshTools()
-
-Requests clients to list tools again.
-
-```ts
-server.refreshTools();
-```
-
----
-
-## refreshPrompts()
-
-Requests clients to list prompts again.
-
-```ts
-server.refreshPrompts();
-```
-
----
-
-## mountRemote()
-
-Mounts tools, prompts, and resources from other HTTP MCP servers onto the current server.
-
-```ts
-await server.mountRemote(remotes);
-```
-
-Remote names are exposed using the format:
-
-```text
-{alias}__{original}
-```
-
-Example:
-
-```ts
-await server.mountRemote({
-  weather: {
-    url: "https://example.com/mcp",
-  },
+```typescript
+return object({
+  success: true,
+  value: 42,
 });
 ```
 
----
+Tool callbacks should use these helpers instead of returning an arbitrary object directly.
 
-## listen()
+## `server.listen()`
 
 Starts the MCP server.
 
-```ts
-await server.listen(options?)
+### stdio
+
+```typescript
+await server.listen({
+  transport: "stdio",
+});
 ```
 
-### ListenOptions
+### HTTP
 
-```ts
-interface ListenOptions {
-  transport?: "stdio" | "http";
-  port?: number;
-  host?: string;
-  silent?: boolean;
+```typescript
+const result = await server.listen({
+  transport: "http",
+  port: 4000,
+});
+
+console.log(result.url);
+```
+
+HTTP listen results include information such as:
+
+```typescript
+{
+  transport: "http",
+  port: 4000,
+  host: "localhost",
+  url: "http://localhost:4000/mcp"
 }
 ```
 
-| Property    | Type                | Default         | Description                              |
-| ----------- | ------------------- | --------------- | ---------------------------------------- |
-| `transport` | `"stdio" \| "http"` | `"stdio"`       | Server transport.                        |
-| `port`      | `number`            | `3000` for HTTP | HTTP listening port.                     |
-| `host`      | `string`            | `"localhost"`   | HTTP listening host.                     |
-| `silent`    | `boolean`           | `false`         | Suppresses the startup URL log for HTTP. |
+### Port Resolution
 
-Example:
+The HTTP port is resolved in this order:
 
-```ts
+1. `listen()` option
+2. `--port` command-line argument
+3. `PORT` environment variable
+4. `3000`
+
+For example:
+
+```typescript
 await server.listen({
   transport: "http",
   port: 4000,
 });
 ```
 
-### ListenResult
+takes precedence over:
 
-```ts
-interface ListenResult {
-  transport: "stdio" | "http";
-  port?: number;
-  host?: string;
-  url?: string;
-}
+```bash
+node server.js --port 5000
 ```
 
-For HTTP, the result contains the actual bound port, host, and MCP endpoint URL.
-
----
-
-## close()
-
-Stops the server and closes mounted remote connections.
-
-```ts
-await server.close();
-```
-
----
-
-## parsePortFromArgv()
-
-Reads a port from command-line arguments.
-
-```ts
-parsePortFromArgv(argv?: string[]): number | undefined
-```
-
-Both formats are supported:
+and:
 
 ```text
---port 4000
---port=4000
+PORT=6000
 ```
 
-If multiple port arguments are supplied, the last valid occurrence wins.
+### Host
 
----
+The HTTP host can be configured with:
 
-# Response Helpers
-
-The server entry point exports helpers for common tool responses.
-
-```ts
-import {
-  text,
-  markdown,
-  image,
-  object,
-  error,
-} from "mcpfy-sdk/server";
-```
-
-## text()
-
-Creates a text content response.
-
-```ts
-text("Hello from MCPfy");
-```
-
-## markdown()
-
-Creates a Markdown content response.
-
-```ts
-markdown("# Weather\n\nThe temperature is 24°C.");
-```
-
-## image()
-
-Creates an image content response.
-
-```ts
-image("https://example.com/weather.png");
-```
-
-## object()
-
-Creates a structured object response.
-
-```ts
-object({
-  city: "Delhi",
-  temperature: 24,
+```typescript
+await server.listen({
+  transport: "http",
+  host: "0.0.0.0",
+  port: 4000,
 });
 ```
 
-## error()
+### Silent Startup
 
-Creates an error response.
+Suppress the HTTP startup message with:
 
-```ts
-error("Unable to fetch weather data");
+```typescript
+await server.listen({
+  transport: "http",
+  silent: true,
+});
 ```
 
-These helpers are useful for keeping tool handlers concise and consistent.
+## `server.close()`
+
+Closes the server and its underlying resources.
+
+```typescript
+await server.close();
+```
+
+## `server.nativeServer`
+
+Provides access to the underlying native MCP server.
+
+```typescript
+const nativeServer = server.nativeServer;
+```
+
+This can be used when functionality from the official MCP SDK is required directly.
 
 ---
 
-# Server Context
+# Client
 
-The server package exports:
+Import the client from:
 
-```ts
-ToolContext
-SampleOptions
-LogLevel
-AskUrlOptions
+```typescript
+import { MCPClient } from "mcpfy-sdk/client";
 ```
 
-`ToolContext` provides information and operations available to a tool during execution.
+## `MCPClient`
+
+Creates an MCP client.
+
+### HTTP Server
+
+```typescript
+const client = new MCPClient({
+  mcpServers: {
+    remote: { url: "http://localhost:4000/mcp" },
+  },
+});
+
+const session = await client.createSession("remote");
+```
+
+### stdio Server
+
+```typescript
+const client = new MCPClient({
+  mcpServers: {
+    local: { command: "node", args: ["dist/server.js"] },
+  },
+});
+
+const session = await client.createSession("local");
+```
+
+The client determines the connection type from the server configuration.
+
+A `transport` property is not required for stdio configuration.
+
+---
+
+# Resources
+
+## `server.resource()`
+
+Registers a resource.
+
+```typescript
+server.resource(
+  {
+    name: "server-info",
+    uri: "info://server",
+    description: "Server information",
+    mimeType: "text/plain",
+  },
+  async () => ({
+    contents: [
+      {
+        uri: "info://server",
+        text: "Server information",
+      },
+    ],
+  })
+);
+```
+
+The callback receives the tool context. The registered URI is available from the definition.
+
+## `server.resourceTemplate()`
+
+Registers a resource template.
+
+The callback signature receives:
+
+```typescript
+(uri, params, ctx)
+```
 
 Example:
 
-```ts
-server.tool(
+```typescript
+server.resourceTemplate(
   {
-    name: "example",
+    name: "user-profile",
+    uriTemplate: "user://{id}",
+    description: "User profile",
+    mimeType: "text/plain",
   },
-  async (_input, ctx) => {
-    ctx.log("Tool executed");
+  async (uri, params, ctx) => ({
+    contents: [
+      {
+        uri: uri.href,
+        text: `User: ${params.id}`,
+      },
+    ],
+  })
+);
+```
 
+The parameters are:
+
+* `uri` — resolved resource URI
+* `params` — values extracted from the template
+* `ctx` — request context
+
+---
+
+# Prompts
+
+Prompts are reusable prompt definitions exposed by an MCP server.
+
+## Prompt Definition
+
+Prompt arguments are described using a Zod schema.
+
+```typescript
+server.prompt(
+  {
+    name: "greeting",
+    description: "Create a greeting",
+    schema: z.object({
+      name: z.string(),
+    }),
+  },
+  async ({ name }) => {
     return {
-      success: true,
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Greet ${name}`,
+          },
+        },
+      ],
     };
   }
 );
 ```
 
-The server context also provides helpers for forwarding supported authentication headers and interacting with MCP capabilities.
+The prompt definition uses `schema`; there is no `arguments` property on the prompt definition.
 
 ---
 
-# Widgets
+# Context
 
-The server entry point exports widget-related types and APIs:
+Tool and resource callbacks can receive a context object.
 
-```ts
-UIResourceDefinition
-WidgetCallback
-WidgetContent
-WidgetCsp
-WidgetOptions
-WidgetProtocol
-DEFAULT_WIDGETS_DIR
+## `ctx.log()`
+
+Logs a message using a specified level.
+
+```typescript
+ctx.log("info", "Processing request");
 ```
 
-The widget implementation supports multiple UI protocols, including:
-
-* MCP-UI
-* MCP Apps
-* Apps SDK
-
-Widgets can be attached to tools and prepared automatically when the server starts.
+The first argument is the log level and the second is the message.
 
 ---
 
 # Authentication
 
-Authentication types and utilities are available from the server entry point:
+Import the authentication helpers from the server package:
 
-```ts
+```typescript
 import {
   jwksVerifier,
-  oauthAuth0Provider,
-  oauthWorkOSProvider,
 } from "mcpfy-sdk/server";
 ```
 
-## jwksVerifier()
+## `jwksVerifier()`
 
-Creates a JWT/JWKS-based bearer-token verifier.
+Creates a JWT verifier using a JWKS endpoint.
 
-```ts
-jwksVerifier({
-  issuer: "https://issuer.example.com",
-  jwksUri: "https://issuer.example.com/.well-known/jwks.json",
-  audience: "my-api",
+```typescript
+const verifyToken = jwksVerifier({
+  issuer: "https://auth.example.com",
+  jwksUri: "https://auth.example.com/.well-known/jwks.json",
+  audience: "my-mcp-server",
 });
 ```
 
-### Options
+Use it in the server configuration:
 
-```ts
-interface JwksVerifierOptions {
-  issuer: string;
-  jwksUri: string;
-  audience?: string;
-}
-```
+```typescript
+const issuer = "https://auth.example.com";
 
-The verifier validates the token signature and expected issuer/audience and extracts standard authentication information.
-
----
-
-# mcpfy-sdk/client
-
-The client entry point provides APIs for consuming MCP servers.
-
-```ts
-import {
-  MCPClient,
-  MCPSession,
-  StdioConnector,
-  HttpConnector,
-  createConnectorFromConfig,
-} from "mcpfy-sdk/client";
-```
-
----
-
-## MCPClient
-
-```ts
-class MCPClient
-```
-
-Creates and manages sessions for configured MCP servers.
-
-### Configuration
-
-```ts
-interface MCPClientConfig {
-  mcpServers: Record<string, ServerConfig>;
-}
-```
-
-Example:
-
-```ts
-const client = new MCPClient({
-  mcpServers: {
-    weather: {
-      transport: "stdio",
-      command: "node",
-      args: ["weather-server.js"],
-    },
+const server = new MCPServer({
+  name: "protected-server",
+  version: "1.0.0",
+  auth: {
+    type: "oauth",
+    verifyToken: jwksVerifier({
+      issuer,
+      jwksUri: `${issuer}/.well-known/jwks.json`,
+      audience: "my-mcp-server",
+    }),
+    authorizationServers: [issuer],
   },
 });
 ```
 
----
+The authentication discriminant is:
 
-## createSession()
-
-Creates a session for a configured server.
-
-```ts
-const session = await client.createSession("weather");
+```typescript
+type: "oauth"
 ```
 
-If a session for the same server already exists, the existing session is returned.
+not:
 
----
-
-## createAllSessions()
-
-Creates sessions for all configured servers.
-
-```ts
-const sessions = await client.createAllSessions();
+```typescript
+type: "jwt"
 ```
 
-Returns:
+## `NodeOAuthClientProvider`
 
-```ts
-Record<string, MCPSession>
+For Node.js OAuth clients, create the provider through its static `create()` method:
+
+```typescript
+const provider = await NodeOAuthClientProvider.create({
+  // provider options
+});
 ```
 
----
+The constructor is private and should not be called directly.
 
-## getSession()
+## `ensureAuthorized()`
 
-Retrieves an existing session.
+Ensures that an OAuth provider is authorized for a server.
 
-```ts
-const session = client.getSession("weather");
+```typescript
+await ensureAuthorized(
+  provider,
+  serverUrl
+);
 ```
 
-Returns:
+Both the provider and the target server URL are required.
 
-```ts
-MCPSession | undefined
-```
+Example:
 
----
+```typescript
+const serverUrl = "https://example.com/mcp";
 
-## closeAllSessions()
-
-Closes every active session.
-
-```ts
-await client.closeAllSessions();
+await ensureAuthorized(
+  provider,
+  serverUrl
+);
 ```
 
 ---
 
-# Connectors
+# Authentication Header Forwarding
 
-The client package provides:
+mcpfy exposes helpers for forwarding supported authentication headers to upstream services.
 
-```ts
-BaseConnector
-StdioConnector
-HttpConnector
-createConnectorFromConfig
-```
+## `extractForwardableAuthHeaders`
 
-Connectors are responsible for establishing communication with MCP servers.
+Extracts supported authentication headers from incoming headers.
 
-Supported transport types include:
-
-* stdio
-* HTTP
-
-Connector configuration is represented by:
-
-```ts
-ServerConfig
-```
-
-Use `createConnectorFromConfig()` when you need to construct a connector directly from a server configuration.
-
----
-
-# MCPSession
-
-`MCPSession` represents an active connection to an MCP server.
-
-```ts
-const session = await client.createSession("weather");
-```
-
-The session provides the higher-level operations used to interact with the connected MCP server.
-
----
-
-# mcpfy-sdk/widget
-
-The widget entry point provides React APIs for interactive MCP widgets.
-
-```ts
+```typescript
+import type { IncomingMessage } from "node:http";
 import {
-  HostRuntime,
-  ThemeProvider,
-  useHostContext,
-  useHostProtocol,
-  useToolPayload,
-  useCallTool,
-  useSendFollowUp,
-  useOpenExternal,
-  useLayoutMode,
-  useHostTheme,
-  useLinkedTool,
-  useWidgetState,
-  useViewState,
-  useModelContext,
-  useViewTool,
-  HostImage,
-} from "mcpfy-sdk/widget";
+  extractForwardableAuthHeaders,
+  forwardAuthHeaders,
+} from "mcpfy-sdk/server";
+
+async function fetchUpstream(request: IncomingMessage) {
+  const requestHeaders = extractForwardableAuthHeaders(request);
+  return fetch("https://api.example.com/data", {
+    headers: forwardAuthHeaders({ requestHeaders }),
+  });
+}
 ```
 
-These APIs are documented in the **Widget React** guide.
+## `forwardAuthHeaders`
+
+Prepares supported authentication headers for forwarding:
+
+```typescript
+import type { ToolContext } from "mcpfy-sdk/server";
+
+async function fetchWithContext(ctx: Pick<ToolContext, "requestHeaders" | "auth">) {
+  return fetch("https://api.example.com/data", {
+    headers: forwardAuthHeaders(ctx),
+  });
+}
+```
+
+## `FORWARDABLE_AUTH_HEADER_NAMES`
+
+The SDK exports:
+
+```typescript
+FORWARDABLE_AUTH_HEADER_NAMES
+```
+
+This identifies the authentication-related header names that can be forwarded.
+
+Applications should not blindly forward arbitrary inbound headers.
 
 ---
 
-# mcpfy-sdk/widget-bridge
+# Widgets
 
-The widget bridge entry point provides lower-level communication between widgets and their hosts.
+Widgets can be associated with tools.
 
-```ts
+```typescript
+server.tool(
+  {
+    name: "weather",
+    description: "Get weather information",
+    schema: z.object({
+      city: z.string(),
+    }),
+    widget: "weather",
+  },
+  async ({ city }) => {
+    return object({
+      city,
+      temperature: 24,
+    });
+  }
+);
+```
+
+The widget name corresponds to the widget directory:
+
+```text
+src/widgets/weather/
+```
+
+The standard entry point is:
+
+```text
+src/widgets/weather/main.tsx
+```
+
+Build widgets using:
+
+```bash
+mcpfy build
+```
+
+For development:
+
+```bash
+mcpfy dev
+```
+
+See [Widgets](widgets.md).
+
+---
+
+# Widget Content
+
+Widget content can be represented as HTML:
+
+```typescript
+{
+  type: "html",
+  html: "<div>Hello</div>",
+}
+```
+
+or as a URL:
+
+```typescript
+{
+  type: "url",
+  url: "https://example.com/widget",
+}
+```
+
+HTML should not be supplied as a bare string.
+
+## Widget Size
+
+Widget dimensions use a width/height tuple:
+
+```typescript
+size: ["800px", "600px"]
+```
+
+---
+
+# Widget React APIs
+
+The React integration is available through the widget React package.
+
+Common APIs include:
+
+* `useHostProtocol()`
+* `useCallTool()`
+* `useToolPayload()`
+* `CallToolHandle`
+
+For detailed React integration, see [Widget React](widget-react.md).
+
+---
+
+# Widget Bridge
+
+The widget bridge provides communication between widget applications and the MCP host.
+
+The package exposes APIs including:
+
+```typescript
+postIntent
+postNotify
+postToolCall
+postPrompt
+postLink
+connectMcpApps
+App
+PostMessageTransport
+getOpenAiGlobal
+mcpUiActions
+```
+
+These APIs allow widget applications to communicate with the host runtime.
+
+---
+
+# CLI
+
+mcpfy provides CLI commands for widget development and production builds.
+
+## mcpfy dev
+
+Starts the development workflow:
+
+```bash
+mcpfy dev
+```
+
+## `mcpfy build`
+
+Builds widget assets for production:
+
+```bash
+mcpfy build
+```
+
+Production deployments should run the build before starting a server that depends on built widgets.
+
+---
+
+# `create-mcpfy-app`
+
+For a new project, the recommended fast-start command is:
+
+```bash
+npx create-mcpfy-app@latest
+```
+
+This creates a new mcpfy application using the project scaffolding provided by the SDK ecosystem.
+
+---
+
+# Complete Example
+
+The following example combines the core APIs:
+
+```typescript
 import {
-  connect,
-  detectHostProtocol,
-  postLink,
-  postPrompt,
-  postToolCall,
-} from "mcpfy-sdk/widget-bridge";
-```
+  MCPServer,
+  object,
+  text,
+} from "mcpfy-sdk/server";
+import { z } from "zod";
 
-It is primarily intended for widget integrations and advanced use cases where direct host communication is required.
-
----
-
-# mcpfy-sdk/auth
-
-The auth entry point provides OAuth client-side utilities.
-
-```ts
-import {
-  NodeOAuthClientProvider,
-  ensureAuthorized,
-  OAuthSessionStore,
-  FileKVStore,
-} from "mcpfy-sdk/auth";
-```
-
----
-
-## NodeOAuthClientProvider
-
-Provides a Node.js OAuth client implementation for MCP authentication flows.
-
-```ts
-new NodeOAuthClientProvider(options)
-```
-
-The provider implements the official MCP SDK's `OAuthClientProvider` interface.
-
----
-
-## ensureAuthorized()
-
-Ensures that the OAuth client has authorization before proceeding.
-
-```ts
-await ensureAuthorized(provider);
-```
-
----
-
-## OAuthSessionStore
-
-Provides storage for OAuth session information.
-
-```ts
-const store = new OAuthSessionStore(...);
-```
-
----
-
-## FileKVStore
-
-Provides a file-backed key-value store.
-
-```ts
-const store = new FileKVStore(...);
-```
-
-The storage implementation can be used by authentication components that need persistent local state.
-
----
-
-# TypeScript Exports
-
-mcpfy exposes TypeScript types for its public APIs so applications can maintain type safety throughout server, client, authentication, and widget integrations.
-
-Common exported types include:
-
-```ts
-MCPServerConfig
-ListenOptions
-ListenResult
-
-ToolDefinition
-ToolCallback
-ToolContext
-
-PromptDefinition
-PromptCallback
-
-ResourceDefinition
-ReadResourceCallback
-FlatResourceTemplateDefinition
-ReadResourceTemplateCallback
-
-AuthConfig
-AuthInfo
-
-ServerConfig
-
-UIResourceDefinition
-WidgetCallback
-WidgetContent
-WidgetCsp
-WidgetOptions
-WidgetProtocol
-
-HostCapabilities
-LayoutMode
-HostTheme
-ToolPayload
-CallToolHandle
-HostEnv
-ViewToolDefinition
-ModelContextPublish
-```
-
----
-
-# Escape Hatch: Official MCP SDK
-
-mcpfy wraps the official MCP SDK without preventing direct access to it.
-
-```ts
 const server = new MCPServer({
-  name: "example",
+  name: "calculator",
   version: "1.0.0",
+  description: "A calculator MCP server",
 });
 
-server.nativeServer;
+server.tool(
+  {
+    name: "add",
+    description: "Add two numbers",
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
+  },
+  async ({ a, b }) => {
+    return object({
+      result: a + b,
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "greet",
+    description: "Greet a person",
+    schema: z.object({
+      name: z.string(),
+    }),
+  },
+  async ({ name }) => {
+    return text(`Hello, ${name}!`);
+  }
+);
+
+server.resource(
+  {
+    name: "server-info",
+    uri: "info://server",
+    description: "Server information",
+    mimeType: "text/plain",
+  },
+  async () => ({
+    contents: [
+      {
+        uri: "info://server",
+        text: "Calculator MCP server",
+      },
+    ],
+  })
+);
+
+await server.listen({
+  transport: "http",
+  port: 4000,
+});
 ```
 
-Use `nativeServer` when an application needs functionality that is not directly exposed through mcpfy's higher-level API.
+The server exposes:
 
-This design allows developers to start with the simplified mcpfy API while retaining access to the underlying MCP SDK when necessary.
+* two executable tools
+* one MCP resource
+* an HTTP MCP endpoint
+* structured and text tool responses
+
+For complete guides and usage examples, see the individual documentation pages for servers, clients, tools, resources, prompts, widgets, and authentication.
+

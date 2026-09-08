@@ -105,7 +105,7 @@ interface ResourceDefinition {
 ### Properties
 
 | Property       | Type                   | Required | Description                            |
-| -------------- | ---------------------- | -------: | --------------------------------------- |
+| -------------- | ---------------------- | -------: | -------------------------------------- |
 | `name`         | `string`               |      Yes | Resource name                          |
 | `uri`          | `string`               |      Yes | Fixed resource URI                     |
 | `title`        | `string`               |       No | Human-readable title                   |
@@ -151,7 +151,6 @@ server.resource({
   name: "server-status",
   uri: "status://server",
   description: "Current server status",
-
   readCallback: async () => {
     return text("Server is running.");
   },
@@ -374,7 +373,7 @@ interface FlatResourceTemplateDefinition<
 ### Properties
 
 | Property       | Type                           | Required | Description                       |
-| -------------- | ------------------------------- | -------: | ---------------------------------- |
+| -------------- | ------------------------------ | -------: | --------------------------------- |
 | `name`         | `string`                       |      Yes | Template name                     |
 | `uriTemplate`  | `string`                       |      Yes | URI template containing variables |
 | `title`        | `string`                       |       No | Human-readable title              |
@@ -515,7 +514,6 @@ server.resourceTemplate(
   {
     name: "user-profile",
     uriTemplate: "user://{userId}/profile",
-
     schema: z.object({
       userId: z.string(),
     }),
@@ -634,7 +632,7 @@ Conceptually:
 Resource callback
        │
        ▼
-  ResourceResult
+ ResourceResult
        │
        ├── ReadResourceResult
        │       └── returned directly
@@ -691,17 +689,78 @@ Use a static resource when the URI is fixed and a resource template when part of
 # 25. Static Resource vs Resource Template
 
 | Feature            | Static Resource     | Resource Template           |
-| ------------------ | -------------------- | ---------------------------- |
+| ------------------ | ------------------- | --------------------------- |
 | API                | `server.resource()` | `server.resourceTemplate()` |
 | URI                | Fixed               | Dynamic                     |
-| Variables          | No                  | Yes                          |
+| Variables          | No                  | Yes                         |
 | Callback arguments | `ctx`               | `uri`, `params`, `ctx`      |
 | Zod schema         | Not applicable      | Optional type hint          |
 | Best for           | Fixed data          | User/item-specific data     |
 
 ---
 
-# 26. Missing Callback
+# 26. Resource Subscriptions
+
+MCP resources can support subscriptions when clients need to be notified that a resource has changed.
+
+Subscriptions are useful for resources whose contents can change while the server is running.
+
+A client can subscribe to a resource using the MCP resource-subscription mechanism. When the resource changes, the server can notify subscribed clients by refreshing the resource.
+
+mcpfy exposes resource refresh methods on `MCPServer` for this purpose.
+
+### Refreshing a Specific Resource
+
+Use:
+
+```typescript
+await server.refreshResource(uri);
+```
+
+For example:
+
+```typescript
+server.resource(
+  {
+    name: "server-status",
+    uri: "status://server",
+    mimeType: "text/plain",
+  },
+  async () => {
+    return text(getCurrentStatus());
+  }
+);
+
+// After the underlying data changes
+await server.refreshResource("status://server");
+```
+
+The refresh operation tells the underlying MCP server that the resource has changed so subscribed clients can request the latest contents.
+
+### Refreshing Multiple Resources
+
+When multiple resources need to be refreshed, use:
+
+```typescript
+await server.refreshResources(uris);
+```
+
+For example:
+
+```typescript
+await server.refreshResources([
+  "status://server",
+  "config://server",
+]);
+```
+
+Use `refreshResource()` when one resource changes and `refreshResources()` when several resources need to be invalidated together.
+
+> Resource subscriptions are useful only when the MCP client supports the corresponding subscription capability.
+
+---
+
+# 27. Missing Callback
 
 A resource must have a read callback.
 
@@ -729,7 +788,7 @@ A callback must be supplied either through `readCallback` or the second argument
 
 ---
 
-# 27. Complete Static Resource Example
+# 28. Complete Static Resource Example
 
 ```typescript
 import { MCPServer, text } from "mcpfy-sdk/server";
@@ -759,7 +818,7 @@ await server.listen();
 
 ---
 
-# 28. Complete Resource Template Example
+# 29. Complete Resource Template Example
 
 ```typescript
 import { MCPServer, object } from "mcpfy-sdk/server";
@@ -777,7 +836,6 @@ server.resourceTemplate(
     title: "User Profile",
     description: "Retrieve a user profile",
     mimeType: "application/json",
-
     schema: z.object({
       userId: z.string(),
     }),
@@ -795,7 +853,7 @@ await server.listen();
 
 ---
 
-# 29. How Resources Work Internally
+# 30. How Resources Work Internally
 
 When a static resource is registered:
 
@@ -848,9 +906,27 @@ Result converted if necessary
 ReadResourceResult returned
 ```
 
+For subscribed resources:
+
+```text
+Client subscribes to resource
+       │
+       ▼
+Resource changes
+       │
+       ▼
+server.refreshResource()
+       │
+       ▼
+MCP resource-updated notification
+       │
+       ▼
+Client requests latest resource
+```
+
 ---
 
-# 30. Best Practices
+# 31. Best Practices
 
 ### Use meaningful resource names
 
@@ -910,9 +986,25 @@ for Markdown content.
 
 If many resources follow the same URI pattern, use `resourceTemplate()` instead of registering each URI individually.
 
+### Refresh changing resources
+
+If a resource changes while the server is running and clients may subscribe to it, call:
+
+```typescript
+await server.refreshResource(uri);
+```
+
+or:
+
+```typescript
+await server.refreshResources(uris);
+```
+
+after the underlying data changes.
+
 ---
 
-# 31. API Summary
+# 32. API Summary
 
 ### `server.resource()`
 
@@ -934,6 +1026,22 @@ server.resourceTemplate(
   definition,
   callback?
 );
+```
+
+### `server.refreshResource()`
+
+Notifies the underlying MCP server that a specific resource has changed.
+
+```typescript
+await server.refreshResource(uri);
+```
+
+### `server.refreshResources()`
+
+Refreshes multiple resources.
+
+```typescript
+await server.refreshResources(uris);
 ```
 
 ### `ResourceDefinition`
@@ -987,7 +1095,7 @@ type ReadResourceTemplateCallback<
 
 ---
 
-# 32. Summary
+# 33. Summary
 
 mcpfy simplifies MCP resource development by providing:
 
@@ -1000,6 +1108,9 @@ mcpfy simplifies MCP resource development by providing:
 * Standard MCP `ReadResourceResult` support
 * `text()`, `markdown()`, and `object()` content helpers
 * Automatic conversion of content results into MCP resource contents
+* Resource subscriptions through the MCP resource-subscription mechanism
+* `server.refreshResource()` for refreshing an individual resource
+* `server.refreshResources()` for refreshing multiple resources
 
 For fixed data, use:
 
@@ -1013,4 +1124,16 @@ For dynamic URI-based data, use:
 server.resourceTemplate(...)
 ```
 
-Both APIs ultimately integrate with the official MCP server implementation while providing a cleaner developer experience.
+For a resource whose contents can change while the server is running, use the resource subscription mechanism together with:
+
+```typescript
+await server.refreshResource(uri);
+```
+
+or:
+
+```typescript
+await server.refreshResources(uris);
+```
+
+Both resource APIs ultimately integrate with the official MCP server implementation while providing a cleaner developer experience.

@@ -1,28 +1,136 @@
+
 # Tools
 
-Tools are the primary way an MCP server exposes executable functionality to MCP clients.
+Tools allow an MCP server to expose executable functionality to MCP clients.
 
-The MCPfy SDK provides a declarative `server.tool()` API that wraps the official MCP server tool registration while providing convenient support for schemas, callbacks, context, structured results, and widgets.
+A tool has a name, description, input schema, and callback. The callback receives validated input and returns an MCP-compatible result.
 
 ## Basic Tool
 
-A tool is registered with `server.tool()` by providing a definition and a callback.
+Import `MCPServer` and the response helpers from `mcpfy-sdk/server`, and use Zod to define the input schema.
 
-```ts
-import { MCPServer, text } from "mcpfy-sdk/server";
+```typescript
+import { MCPServer, object } from "mcpfy-sdk/server";
+import { z } from "zod";
 
 const server = new MCPServer({
-  name: "my-server",
+  name: "calculator",
+  version: "1.0.0",
+});
+
+server.tool(
+  {
+    name: "add",
+    description: "Add two numbers",
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
+  },
+  async ({ a, b }) => {
+    return object({
+      result: a + b,
+    });
+  }
+);
+
+await server.listen();
+````
+
+`zod` is a peer dependency of the SDK; install it explicitly in applications that define Zod schemas.
+
+The `schema` property must be a Zod schema. For object-shaped input, use `z.object(...)`.
+
+The callback receives input that has already been validated against the schema.
+
+## Tool Definition
+
+A tool definition can contain the following commonly used properties:
+
+```typescript
+import { MCPServer, text } from "mcpfy-sdk/server";
+import { z } from "zod";
+
+server.tool(
+  {
+    name: "weather",
+    description: "Get the current weather",
+    schema: z.object({
+      city: z.string(),
+    }),
+  },
+  async ({ city }) => {
+    return text(`Weather information for ${city}`);
+  }
+);
+```
+
+### `name`
+
+The unique name of the tool.
+
+```typescript
+name: "weather"
+```
+
+### `description`
+
+A human-readable description of what the tool does.
+
+```typescript
+description: "Get the current weather"
+```
+
+A useful description helps MCP clients and models understand when the tool should be used.
+
+### `schema`
+
+The input schema for the tool.
+
+```typescript
+schema: z.object({
+  city: z.string(),
+})
+```
+
+mcpfy uses Zod schemas for tool input validation.
+
+For example:
+
+```typescript
+schema: z.object({
+  name: z.string(),
+  age: z.number().optional(),
+  active: z.boolean().default(true),
+})
+```
+
+## Tool Results
+
+Tool callbacks must return an MCP-compatible result.
+
+mcpfy provides response helpers that create the required MCP content structure.
+
+### Text Results
+
+Use `text()` when the tool should return plain text.
+
+```typescript
+import { MCPServer, text } from "mcpfy-sdk/server";
+import { z } from "zod";
+
+const server = new MCPServer({
+  name: "example",
   version: "1.0.0",
 });
 
 server.tool(
   {
     name: "greet",
-    description: "Greet a user",
-    schema: {
-      name: "string",
-    },
+    description: "Greet a person",
+    schema: z.object({
+      name: z.string(),
+    }),
   },
   async ({ name }) => {
     return text(`Hello, ${name}!`);
@@ -32,566 +140,562 @@ server.tool(
 await server.listen();
 ```
 
-The tool definition describes the tool that MCP clients can discover, while the callback contains the logic executed when the tool is called.
+### Structured Results
 
-## Tool Definition
+Use `object()` when the tool should return structured data.
 
-The `ToolDefinition` type supports the following main properties:
+```typescript
+import { MCPServer, object } from "mcpfy-sdk/server";
+import { z } from "zod";
 
-```ts
-interface ToolDefinition<TInput = Record<string, any>, TOutput = Record<string, unknown>> {
-  name: string;
-  title?: string;
-  description?: string;
-  schema?: unknown;
-  widget?: string | WidgetOptions;
-  cb?: ToolCallback<TInput, TOutput>;
-}
+const server = new MCPServer({
+  name: "calculator",
+  version: "1.0.0",
+});
+
+server.tool(
+  {
+    name: "calculate",
+    description: "Perform a calculation",
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
+  },
+  async ({ a, b }) => {
+    return object({
+      sum: a + b,
+      product: a * b,
+    });
+  }
+);
+
+await server.listen();
 ```
 
-### `name`
+The important distinction is that a tool callback should not return an arbitrary object such as:
 
-The unique name of the tool.
-
-```ts
-{
-  name: "get_weather"
-}
+```typescript
+return {
+  result: a + b,
+};
 ```
 
-The name is used by MCP clients when calling the tool.
+Instead, wrap structured data with `object()`:
 
-### `title`
-
-An optional human-readable title for the tool.
-
-```ts
-{
-  name: "get_weather",
-  title: "Get Weather"
-}
+```typescript
+return object({
+  result: a + b,
+});
 ```
 
-### `description`
+This produces the MCP-compatible response content expected by the SDK.
 
-A description of what the tool does.
+## Markdown Results
 
-```ts
-{
-  name: "get_weather",
-  description: "Get the current weather for a city"
-}
+When a response is intended to contain Markdown content, use `markdown()`.
+
+```typescript
+import { MCPServer, markdown } from "mcpfy-sdk/server";
+import { z } from "zod";
+
+const server = new MCPServer({
+  name: "documentation",
+  version: "1.0.0",
+});
+
+server.tool(
+  {
+    name: "get-documentation",
+    description: "Return documentation",
+    schema: z.object({
+      topic: z.string(),
+    }),
+  },
+  async ({ topic }) => {
+    return markdown(`# ${topic}\n\nDocumentation for **${topic}**.`);
+  }
+);
+
+await server.listen();
 ```
 
-Descriptions are useful because MCP clients and models can use them to understand when a tool should be called.
+## Optional Input
 
-### `schema`
+Zod can be used to define optional values.
 
-The optional input schema describes the arguments accepted by the tool.
-
-MCPfy supports schema definitions through the SDK's tool registration layer, including Zod-based schemas where appropriate.
-
-For example:
-
-```ts
+```typescript
+import { text } from "mcpfy-sdk/server";
 import { z } from "zod";
 
 server.tool(
   {
-    name: "get_weather",
-    description: "Get weather information",
+    name: "greet",
+    description: "Generate a greeting",
     schema: z.object({
-      city: z.string(),
-      units: z.enum(["celsius", "fahrenheit"]).optional(),
+      name: z.string(),
+      formal: z.boolean().optional(),
     }),
   },
-  async ({ city, units }) => {
-    // ...
+  async ({ name, formal }) => {
+    return text(
+      formal
+        ? `Good day, ${name}.`
+        : `Hey ${name}!`
+    );
   }
 );
 ```
 
-The schema is used to describe and validate the tool's input according to the underlying MCP SDK behavior.
+## Tool Validation
 
-## Tool Callback
+Because the schema is defined with Zod, invalid input is rejected according to the schema before the tool callback receives it.
 
-The callback is executed when the tool is called.
+For example:
 
-```ts
+```typescript
+schema: z.object({
+  a: z.number(),
+  b: z.number(),
+})
+```
+
+expects both `a` and `b` to be numbers.
+
+A string such as:
+
+```json
+{
+  "a": "10",
+  "b": 20
+}
+```
+
+does not satisfy the schema.
+
+## Multiple Tools
+
+An MCP server can register multiple tools.
+
+```typescript
+import { MCPServer, object, text } from "mcpfy-sdk/server";
+import { z } from "zod";
+
+const server = new MCPServer({
+  name: "calculator",
+  version: "1.0.0",
+});
+
 server.tool(
   {
     name: "add",
     description: "Add two numbers",
-    schema: {
-      a: "number",
-      b: "number",
-    },
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
   },
   async ({ a, b }) => {
-    return {
+    return object({
       result: a + b,
-    };
+    });
   }
 );
-```
 
-The callback receives the parsed input and can return a tool result.
-
-Callbacks can also access the MCPfy tool context.
-
-```ts
 server.tool(
   {
-    name: "example",
-    description: "Example tool",
+    name: "multiply",
+    description: "Multiply two numbers",
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
   },
-  async (input, ctx) => {
-    // use input
-    // use ctx
-    return {
-      success: true,
-    };
+  async ({ a, b }) => {
+    return object({
+      result: a * b,
+    });
   }
 );
-```
 
-## Defining the Callback Inside the Definition
-
-Instead of passing the callback as the second argument, it can be supplied through the tool definition when supported by the definition.
-
-```ts
-server.tool({
-  name: "greet",
-  description: "Greet a user",
-  schema: {
-    name: "string",
-  },
-  cb: async ({ name }) => {
-    return text(`Hello, ${name}!`);
-  },
-});
-```
-
-Passing the callback separately is also supported:
-
-```ts
 server.tool(
   {
     name: "greet",
-    description: "Greet a user",
-    schema: {
-      name: "string",
-    },
+    description: "Greet a person",
+    schema: z.object({
+      name: z.string(),
+    }),
   },
   async ({ name }) => {
     return text(`Hello, ${name}!`);
   }
 );
+
+await server.listen();
 ```
-
-## Returning Results
-
-MCPfy provides response helpers for common tool-result formats.
-
-They are exported from `mcpfy-sdk/server`:
-
-```ts
-import {
-  text,
-  markdown,
-  image,
-  object,
-  error,
-} from "mcpfy-sdk/server";
-```
-
-### Text
-
-Return plain text:
-
-```ts
-return text("Hello from MCPfy");
-```
-
-### Markdown
-
-Return Markdown content:
-
-```ts
-return markdown(`
-# Weather
-
-The current temperature is **24°C**.
-`);
-```
-
-### Image
-
-Return an image result:
-
-```ts
-return image("https://example.com/weather.png");
-```
-
-### Object
-
-Return structured data:
-
-```ts
-return object({
-  city: "Delhi",
-  temperatureC: 24,
-  condition: "Sunny",
-});
-```
-
-This is useful when the caller needs machine-readable structured output.
-
-### Error
-
-Return an MCP tool error:
-
-```ts
-return error("Unable to retrieve weather data");
-```
-
-## Structured Output
-
-Tools can return structured data that can be consumed programmatically.
-
-For example:
-
-```ts
-server.tool(
-  {
-    name: "get_weather",
-    description: "Get weather information",
-  },
-  async ({ city }) => {
-    return {
-      city,
-      temperatureC: 24,
-      condition: "Sunny",
-    };
-  }
-);
-```
-
-MCPfy preserves structured results when registering tools and when interacting with them through its client and widget APIs.
-
-For widget-enabled tools, the result can also be exposed through `structuredContent`.
 
 ## Tool Context
 
-Tool callbacks can receive a `ToolContext` as their second argument.
+Tool callbacks can use the context provided by mcpfy for operations such as logging and interacting with the MCP runtime.
 
-```ts
+A tool callback can receive the context as an additional argument:
+
+```typescript
 server.tool(
   {
     name: "example",
     description: "Example tool",
+    schema: z.object({
+      value: z.string(),
+    }),
   },
-  async (input, ctx) => {
-    // Tool implementation
-    return text("Done");
+  async ({ value }, ctx) => {
+    ctx.log("info", `Processing ${value}`);
+
+    return text(`Processed: ${value}`);
   }
 );
 ```
 
-The context provides access to functionality associated with the current MCP request.
+The log method requires a log level followed by the message:
 
-MCPfy exposes context-related types through:
-
-```ts
-import type {
-  ToolContext,
-  SampleOptions,
-  LogLevel,
-  AskUrlOptions,
-} from "mcpfy-sdk/server";
+```typescript
+ctx.log("info", "Processing request");
 ```
 
-The context layer also includes helpers for working with authentication headers when a server forwards authenticated requests.
+Do not use:
 
-## Authentication-Aware Tools
+```typescript
+ctx.log("Processing request");
+```
 
-When authentication is configured for an HTTP MCP server, tool execution can work with the authenticated request context.
+## Returning Errors
 
-Authentication is configured at the server level:
+Tool implementations can throw errors when an operation cannot be completed.
 
-```ts
-const server = new MCPServer({
-  name: "secure-server",
-  version: "1.0.0",
-  auth: {
-    // authentication configuration
+```typescript
+server.tool(
+  {
+    name: "divide",
+    description: "Divide two numbers",
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
   },
+  async ({ a, b }) => {
+    if (b === 0) {
+      throw new Error("Cannot divide by zero");
+    }
+
+    return object({
+      result: a / b,
+    });
+  }
+);
+```
+
+Use meaningful error messages so that clients can understand what went wrong.
+
+## Images
+
+mcpfy supports image content in tool responses.
+
+When returning image content, the image data must be supplied as base64-encoded data rather than as a remote URL.
+
+For example, fetch the image, convert it to base64, and pass that data to `image()`:
+
+```typescript
+import { image } from "mcpfy-sdk/server";
+
+async function loadImage() {
+  const response = await fetch("https://example.com/image.png");
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const base64 = buffer.toString("base64");
+  return image(base64, "image/png");
+}
+```
+
+Return the result of `loadImage()` from the tool callback.
+
+Do not pass the URL directly where base64 image data is required.
+
+## Client Configuration for Tools
+
+Tools can be exposed by an HTTP MCP server and consumed by an MCP client.
+
+For example, an HTTP server can be started with:
+
+```typescript
+await server.listen({
+  transport: "http",
+  port: 4000,
 });
 ```
 
-Tool callbacks can then use the request context provided by MCPfy where appropriate.
-
-For complete authentication configuration, see the [Authentication](./authentication) guide.
-
-## Tools With Widgets
-
-MCPfy allows a tool to be associated with an interactive widget.
-
-For example:
-
-```ts
-server.tool(
-  {
-    name: "weather",
-    description: "Get weather information",
-    schema: {
-      city: "string",
-    },
-    widget: "weather",
-  },
-  async ({ city }) => {
-    return {
-      city,
-      temperatureC: 24,
-      condition: "Sunny",
-    };
-  }
-);
-```
-
-The widget is associated with the tool and can present the tool's result through an interactive UI.
-
-MCPfy supports widget protocols including:
-
-* MCP-UI
-* MCP Apps
-* Apps SDK
-
-The SDK handles protocol-specific metadata and content generation while keeping the tool registration API consistent.
-
-See [Widgets](./widgets) for the complete widget documentation.
-
-## Tool Registration Flow
-
-When `server.tool()` is called, MCPfy registers the tool with the underlying official MCP server.
-
-Conceptually, the flow is:
+The MCP endpoint is:
 
 ```text
-server.tool(...)
-      │
-      ▼
-MCPfy tool registration
-      │
-      ▼
-Official MCP Server
-      │
-      ▼
-MCP client discovers the tool
-      │
-      ▼
-Client calls the tool
-      │
-      ▼
-MCPfy callback executes
-      │
-      ▼
-Tool result returned
+http://localhost:4000/mcp
 ```
 
-MCPfy therefore provides a higher-level developer API without replacing the underlying MCP implementation.
+A client can connect using the server URL:
 
-## Tool Discovery Updates
-
-MCPfy enables the MCP server's `tools/list_changed` capability.
-
-When the available tools change, the server can notify clients that they should refresh their tool list.
-
-You can explicitly request a refresh with:
-
-```ts
-server.refreshTools();
-```
-
-This is useful for applications where the available tools can change dynamically.
-
-## Calling Tools From a Client
-
-Tools exposed by an MCPfy server can be consumed using `MCPClient`.
-
-```ts
+```typescript
 import { MCPClient } from "mcpfy-sdk/client";
 
 const client = new MCPClient({
   mcpServers: {
-    weather: {
-      transport: "stdio",
-      command: "node",
-      args: ["weather-server.js"],
-    },
+    remote: { url: "http://localhost:4000/mcp" },
   },
 });
 
-const session = await client.createSession("weather");
+const session = await client.createSession("remote");
+```
 
-const result = await session.callTool("get_weather", {
-  city: "Delhi",
+For a stdio server, configure the client with the command used to start the server:
+
+```typescript
+import { MCPClient } from "mcpfy-sdk/client";
+
+const client = new MCPClient({
+  mcpServers: {
+    local: { command: "node", args: ["dist/server.js"] },
+  },
+});
+
+const session = await client.createSession("local");
+```
+
+The transport is inferred from the server configuration. There is no `transport: "stdio"` property in the client `ServerConfig`.
+
+## Typed Tool Calls
+
+mcpfy supports typed tool calls when schemas and types are available.
+
+Defining a Zod schema provides the foundation for strongly typed tool input:
+
+```typescript
+import { MCPServer, object } from "mcpfy-sdk/server";
+import { z } from "zod";
+
+const schema = z.object({
+  city: z.string(),
+  units: z.enum(["celsius", "fahrenheit"]),
 });
 ```
 
-The client API is documented in [Client](./client).
+The callback input is inferred from the schema:
 
-## TypeScript Types
-
-MCPfy's tool API is generic, allowing input and output types to be represented at compile time.
-
-```ts
-server.tool<
-  { city: string },
-  { city: string; temperatureC: number }
->(
+```typescript
+server.tool(
   {
     name: "weather",
     description: "Get weather information",
+    schema,
   },
-  async ({ city }) => {
-    return {
+  async ({ city, units }) => {
+    return object({
       city,
-      temperatureC: 24,
-    };
+      units,
+    });
   }
 );
 ```
 
-This is particularly useful when building larger MCP servers where multiple tools share strongly typed data structures.
+This reduces the need for manual input type declarations and keeps runtime validation aligned with TypeScript usage.
 
-## Tool Naming
+## Organizing Tools
 
-Use clear, stable names for tools.
+For larger projects, tools can be separated into individual modules.
 
-Good examples:
-
-```text
-get_weather
-search_documents
-create_ticket
-get_customer
-send_email
-```
-
-Avoid unnecessarily ambiguous names such as:
+Example:
 
 ```text
-data
-run
-doThing
-process
+src/
+├── server.ts
+└── tools/
+    ├── calculator.ts
+    └── weather.ts
 ```
 
-A descriptive name combined with a useful description makes the tool easier for MCP clients and models to understand.
+A tool module can export a registration function:
 
-## Best Practices
+```typescript
+import { MCPServer, object } from "mcpfy-sdk/server";
+import { z } from "zod";
 
-### Keep tools focused
-
-A tool should generally perform one clear operation.
-
-Prefer:
-
-```text
-search_users
-get_user
-update_user
-```
-
-over a single tool that attempts to perform unrelated operations.
-
-### Write useful descriptions
-
-Tool descriptions should explain what the tool does and when it should be used.
-
-```ts
-{
-  name: "search_documents",
-  description: "Search indexed documents using a text query and return matching documents."
+export function registerCalculator(server: MCPServer) {
+  server.tool(
+    {
+      name: "add",
+      description: "Add two numbers",
+      schema: z.object({
+        a: z.number(),
+        b: z.number(),
+      }),
+    },
+    async ({ a, b }) => {
+      return object({
+        result: a + b,
+      });
+    }
+  );
 }
 ```
 
-### Define input schemas
+The main server can then register the tool:
 
-Schemas make tool inputs explicit and improve validation and interoperability.
+```typescript
+import { MCPServer } from "mcpfy-sdk/server";
+import { registerCalculator } from "./tools/calculator.js";
 
-```ts
+const server = new MCPServer({
+  name: "calculator",
+  version: "1.0.0",
+});
+
+registerCalculator(server);
+
+await server.listen();
+```
+
+## Forwarding Authentication Headers
+
+When an HTTP MCP server needs to make authenticated upstream requests using authentication received from the MCP request, use the SDK's supported authentication-header forwarding helpers.
+
+The relevant APIs include:
+
+```typescript
+forwardAuthHeaders
+extractForwardableAuthHeaders
+FORWARDABLE_AUTH_HEADER_NAMES
+```
+
+These helpers provide the supported mechanism for forwarding permitted inbound authentication headers to upstream requests.
+
+Authentication configuration and token verification are covered in [Authentication](authentication.md).
+
+## Tools with Widgets
+
+Tools can be associated with MCP Apps widgets when the server needs to return an interactive UI.
+
+A tool can specify a widget using the SDK's widget configuration.
+
+The widget itself must follow the project's widget directory and build conventions.
+
+See [Widgets](widgets.md) for the complete widget workflow.
+
+## Best Practices
+
+### Use descriptive names
+
+Prefer:
+
+```typescript
+name: "get-weather"
+```
+
+over:
+
+```typescript
+name: "tool1"
+```
+
+### Write useful descriptions
+
+A description should explain what the tool does and when it should be used.
+
+```typescript
+description: "Get the current weather for a specified city"
+```
+
+### Validate all structured input
+
+Use Zod schemas instead of accepting unvalidated objects:
+
+```typescript
 schema: z.object({
-  query: z.string(),
-  limit: z.number().optional(),
+  city: z.string(),
+  country: z.string().optional(),
 })
 ```
 
-### Return structured data when appropriate
+### Return SDK-compatible results
 
-If the result will be consumed programmatically, prefer structured output over encoding everything into a text string.
+Use the response helpers:
 
-```ts
-return {
-  id: "123",
-  status: "active",
-};
+```typescript
+return text("Done");
 ```
 
-### Handle errors explicitly
+or:
 
-Use the provided error helper when a tool operation cannot be completed:
-
-```ts
-return error("Document could not be found");
+```typescript
+return object({
+  success: true,
+});
 ```
 
-### Keep callbacks asynchronous when necessary
+rather than returning an arbitrary object.
 
-Tool callbacks can perform asynchronous operations such as API requests or database queries:
+### Keep tools focused
 
-```ts
+A tool should generally perform one well-defined operation. Smaller, focused tools are easier for MCP clients and models to understand and use correctly.
+
+## Complete Example
+
+The following example combines schema validation, multiple tools, and MCP-compatible responses:
+
+```typescript
+import { MCPServer, object, text } from "mcpfy-sdk/server";
+import { z } from "zod";
+
+const server = new MCPServer({
+  name: "calculator",
+  version: "1.0.0",
+  description: "A calculator MCP server",
+});
+
 server.tool(
   {
-    name: "get_user",
-    description: "Get a user by ID",
+    name: "add",
+    description: "Add two numbers",
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
   },
-  async ({ id }) => {
-    const user = await database.users.findById(id);
-
-    if (!user) {
-      return error("User not found");
-    }
-
-    return object(user);
+  async ({ a, b }) => {
+    return object({
+      result: a + b,
+    });
   }
 );
+
+server.tool(
+  {
+    name: "greet",
+    description: "Greet a person",
+    schema: z.object({
+      name: z.string(),
+    }),
+  },
+  async ({ name }) => {
+    return text(`Hello, ${name}!`);
+  }
+);
+
+await server.listen({
+  transport: "http",
+  port: 4000,
+});
 ```
 
-## API Summary
+The server exposes two tools:
 
-| API                     | Purpose                                 |
-| ----------------------- | --------------------------------------- |
-| `server.tool()`         | Register an MCP tool                    |
-| `ToolDefinition`        | Describe a tool                         |
-| `ToolCallback`          | Implement tool behavior                 |
-| `text()`                | Return text content                     |
-| `markdown()`            | Return Markdown content                 |
-| `image()`               | Return image content                    |
-| `object()`              | Return structured data                  |
-| `error()`               | Return a tool error                     |
-| `server.refreshTools()` | Notify clients to refresh the tool list |
+* `add` — returns structured data using `object()`
+* `greet` — returns text using `text()`
 
-## Related Documentation
+The examples in this guide use the actual mcpfy tool schema and response patterns so they can be checked against the SDK rather than relying on arbitrary MCP-shaped objects.
 
-* [Getting Started](./getting-started)
-* [Architecture](./architecture)
-* [Server](./server)
-* [Client](./client)
-* [Prompts](./prompts)
-* [Resources](./resources)
-* [Widgets](./widgets)
-* [Widget React](./widget-react)
-* [Authentication](./authentication)
-* [API Reference](./api-reference)
