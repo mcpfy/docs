@@ -21,12 +21,9 @@
             ]
           },
           {
-            "group": "Pulse SDK",
+            "group": "MCPfy Cloud",
             "pages": [
-              "pulse-sdk/overview",
-              "pulse-sdk/typescript",
-              "pulse-sdk/python",
-              "pulse-sdk/dashboard"
+              "mcpfy-cloud/deployment-from-github/deployment"
             ]
           },
           {
@@ -43,6 +40,15 @@
               "mcpfy-sdk/widget-react",
               "mcpfy-sdk/authentication",
               "mcpfy-sdk/api-reference"
+            ]
+          },
+          {
+            "group": "Pulse SDK",
+            "pages": [
+              "pulse-sdk/overview",
+              "pulse-sdk/typescript",
+              "pulse-sdk/python",
+              "pulse-sdk/dashboard"
             ]
           }
         ]
