@@ -14,41 +14,51 @@
         "tab": "Guides",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "MCPfy Documentation",
             "pages": [
-              "create-server",
-              "support"
-            ]
-          },
-          {
-            "group": "MCPfy Cloud",
-            "pages": [
-              "mcpfy-cloud/deployment-from-github/deployment"
-            ]
-          },
-          {
-            "group": "MCPfy SDK",
-            "pages": [
-              "mcpfy-sdk/getting-started",
-              "mcpfy-sdk/architecture",
-              "mcpfy-sdk/server",
-              "mcpfy-sdk/client",
-              "mcpfy-sdk/tools",
-              "mcpfy-sdk/prompts",
-              "mcpfy-sdk/resources",
-              "mcpfy-sdk/widgets",
-              "mcpfy-sdk/widget-react",
-              "mcpfy-sdk/authentication",
-              "mcpfy-sdk/api-reference"
-            ]
-          },
-          {
-            "group": "Pulse SDK",
-            "pages": [
-              "pulse-sdk/overview",
-              "pulse-sdk/typescript",
-              "pulse-sdk/python",
-              "pulse-sdk/dashboard"
+              {
+                "group": "Getting started",
+                "expanded": false,
+                "pages": [
+                  "create-server",
+                  "support"
+                ]
+              },
+              {
+                "group": "MCPfy Cloud",
+                "expanded": false,
+                "pages": [
+                  "mcpfy-cloud/deployment-from-github/deployment"
+                ]
+              },
+              {
+                "group": "MCPfy SDK",
+                "expanded": false,
+                "pages": [
+                  "mcpfy-sdk/getting-started",
+                  "mcpfy-sdk/architecture",
+                  "mcpfy-sdk/server",
+                  "mcpfy-sdk/client",
+                  "mcpfy-sdk/tools",
+                  "mcpfy-sdk/prompts",
+                  "mcpfy-sdk/resources",
+                  "mcpfy-sdk/widgets",
+                  "mcpfy-sdk/widget-react",
+                  "mcpfy-sdk/authentication",
+                  "mcpfy-sdk/api-reference",
+                  "mcpfy-sdk/claude-skill"
+                ]
+              },
+              {
+                "group": "Pulse SDK",
+                "expanded": false,
+                "pages": [
+                  "pulse-sdk/overview",
+                  "pulse-sdk/typescript",
+                  "pulse-sdk/python",
+                  "pulse-sdk/dashboard"
+                ]
+              }
             ]
           }
         ]
